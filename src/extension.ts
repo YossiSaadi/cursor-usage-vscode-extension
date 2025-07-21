@@ -175,17 +175,22 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
     const usedRequests = mySpend.fastPremiumRequests;
     const remainingRequests = totalRequests - usedRequests;
 
-    statusBar.updateStatusBar(remainingRequests);
-    console.log(
-      `[Cursor Usage] Successfully updated status bar. Remaining requests: ${remainingRequests}`
-    );
+    // Extract spending information if available
+    const spendCents = mySpend.spendCents;
+    const hardLimitDollars = mySpend.hardLimitOverrideDollars;
+
+    statusBar.updateStatusBar(remainingRequests, spendCents, hardLimitDollars);
+
+    let logMessage = `[Cursor Usage] Successfully updated status bar. Remaining requests: ${remainingRequests}`;
+    if (spendCents !== undefined && hardLimitDollars !== undefined) {
+      const spendDollars = (spendCents / 100).toFixed(2);
+      logMessage += `, Current spend: $${spendDollars}/$${hardLimitDollars.toFixed(2)}`;
+    }
+    console.log(logMessage);
   } catch (error: any) {
     statusBar.setStatusBarError("Refresh Failed");
     console.error(
       `[Cursor Usage] Failed to refresh Cursor usage: ${error.message}`
-    );
-    vscode.window.showErrorMessage(
-      `Failed to refresh Cursor usage: ${error.message}`
     );
   }
 }
