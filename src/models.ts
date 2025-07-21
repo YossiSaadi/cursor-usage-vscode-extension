@@ -28,6 +28,10 @@ export interface TeamMemberSpend {
   email: string;
   fastPremiumRequests?: number;
   userId?: number;
+  spendCents?: number;
+  hardLimitOverrideDollars?: number;
+  name?: string;
+  role?: string;
 }
 
 /**
