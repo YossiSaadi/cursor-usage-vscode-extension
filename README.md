@@ -1,27 +1,43 @@
 # Cursor Usage
 
-> Track your remaining Cursor fast-premium requests directly in your Cursor's status bar.
+> Track your remaining Cursor fast-premium requests and usage-based spending directly in your Cursor's status bar.
 
 ## What It Gives You
 
-This extension displays your remaining Cursor fast-premium requests count in Cursor's status bar, updating automatically so you never get caught off-guard when you're about to hit your limit. Think of it as your personal AI usage speedometer.
+This extension displays your remaining Cursor fast-premium requests count in Cursor's status bar, with usage-based spending information shown when you've exhausted your included requests. It updates automatically so you never get caught off-guard when you're about to hit your limits. Think of it as your personal AI usage speedometer with financial tracking.
 
 - **Real-time tracking**: See your remaining requests at a glance (e.g., `⚡ 247`)
-- **Smart color coding**: Visual warnings when you're running low
+- **Smart transitions**: When requests are exhausted, seamlessly shows spending vs limit (e.g., `$1.52/$150.00`)
+- **Smart color coding**: Visual warnings when you're running low on requests or approaching spend limits
+- **Comprehensive tooltips**: Detailed breakdown of usage and spending with percentages and warnings
 - **Click to refresh**: Quick manual refresh by clicking the status bar
 - **Automatic updates**: Configurable polling to keep data fresh
 - **Command Palette Access**: All key actions are available via commands.
 
 ## How It Works
 
-The extension authenticates with Cursor's Dashboard API using your browser session cookie, fetches your team's usage data, and calculates your remaining fast-premium requests. It's essentially doing what you'd do manually by checking the Cursor dashboard, but automatically and without leaving your editor.
+The extension authenticates with Cursor's Dashboard API using your browser session cookie, fetches your team's usage data, and displays your remaining fast-premium requests. When you've used all your included requests, it switches to showing your current spending against your hard limit. It's essentially doing what you'd do manually by checking the Cursor dashboard, but automatically and without leaving your editor.
 
 **Visual Status Indicators:**
 
-- 🟢 **Normal**: Plenty of requests remaining
-- 🟡 **Warning**: ≤10% remaining (yellow background)
-- 🔴 **Critical**: Maximum requests reached (red background)
-  _Coming soon: Usage-based spend tracking for when you exceed your included requests_
+**When showing requests (remainingRequests > 0):**
+
+- 🟢 **Normal**: Plenty of requests remaining (>10%)
+- 🟡 **Warning**: Low on requests (≤10% remaining, yellow background)
+
+**When showing spending (0 requests left):**
+
+- 🟢 **Normal**: Spending well below limit (<80%)
+- 🟡 **Warning**: Approaching spend limit (≥80%, yellow background)
+- 🔴 **Critical**: Spend limit reached or exceeded (red background)
+
+**Status Bar Display Logic:**
+
+- `⚡ 247` - 247 fast-premium requests remaining (normal state)
+- `⚠️ 15` - Warning: low requests remaining (≤10%)
+- `⚡ $1.52/$150.00` - No requests left, normal spending (green)
+- `⚠️ $120.50/$150.00` - No requests left, approaching limit (yellow)
+- `❌ $150.00/$150.00` - No requests left, limit reached (red)
 
 ## Setup Requirements
 
@@ -66,6 +82,41 @@ All commands are available from the Command Palette (`Cmd+Shift+P`).
 | `Open Settings`       | Opens the extension's settings UI.                                                                       |
 
 _Tip: Click the status bar item to quickly refresh your usage data._
+
+## Detailed Tooltip Information
+
+Hover over the status bar item to see comprehensive information:
+
+**When you have requests remaining:**
+
+```
+Cursor Usage:
+• Fast Premium Requests: 247/500 remaining (50.6% used)
+• Click to refresh usage data
+
+Usage-Based Spending:
+• Current spend: $1.52 of $150.00 limit (1.0% used)
+• Remaining budget: $148.48
+```
+
+**When requests are exhausted:**
+
+```
+Cursor Usage:
+• Fast Premium Requests: 0/500 remaining (100% used)
+• Click to refresh usage data
+
+Usage-Based Spending:
+• Current spend: $1.52 of $150.00 limit (1.0% used)
+• Remaining budget: $148.48
+```
+
+Additional warnings appear when limits are approached:
+
+- `⚠️ Low on fast premium requests` (≤10% remaining)
+- `⚠️ Approaching spend limit` (≥80% of budget used)
+- `⚠️ No fast premium requests remaining`
+- `⚠️ Spend limit reached!`
 
 ## Security & Privacy
 
@@ -172,6 +223,12 @@ vsce package
 - There may be a network connectivity issue or the Cursor API is down.
 - Your cookie might have expired; try re-inserting it.
 - Run the `Cursor Usage: Force Re-initialize` command.
+
+### Spending information not showing
+
+- Spending data (`spendCents` and `hardLimitOverrideDollars`) may not be available for all users or teams.
+- The extension will gracefully fall back to showing only fast-premium request counts.
+- Ensure your team has usage-based billing configured if you expect to see spending data.
 
 ## License
 

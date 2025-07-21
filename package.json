@@ -1,8 +1,8 @@
 {
   "name": "cursor-usage",
   "displayName": "Cursor Usage",
-  "description": "Track your remaining Cursor fast-premium requests in the status bar",
-  "version": "1.0.0",
+  "description": "Track your remaining Cursor fast-premium requests in the status bar, with usage-based spending shown when exhausted",
+  "version": "1.1.0",
   "license": "MIT",
   "repository": {
     "type": "git",
