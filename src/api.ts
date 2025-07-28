@@ -27,8 +27,8 @@ async function post<T>(
   let command: string;
   if (isWindows) {
     // Windows PowerShell escaping
-    const jsonBody = JSON.stringify(body).replace(/"/g, '""');
-    const escapedCookie = userCookie.replace(/"/g, '""');
+    const jsonBody = JSON.stringify(body).replace(/"/g, '`"');
+    const escapedCookie = userCookie.replace(/"/g, '`"');
     
     command = `curl -s -L '${url}' \
       -H 'Content-Type: application/json' \
