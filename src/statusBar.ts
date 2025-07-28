@@ -1,7 +1,15 @@
 import * as vscode from "vscode";
 
 let statusBarItem: vscode.StatusBarItem;
-const TOTAL_REQUESTS = 500;
+
+/**
+ * Interface for reset information
+ */
+interface ResetInfo {
+  resetDate: Date;
+  daysRemaining: number;
+  resetDateStr: string;
+}
 
 /**
  * Creates and displays the status bar item.
@@ -18,21 +26,25 @@ export function createStatusBarItem() {
 }
 
 /**
- * Updates the status bar with the remaining requests, spending info, and appropriate color/icon.
+ * Updates the status bar with the remaining requests, spending info, reset info, and appropriate color/icon.
  * @param remainingRequests The number of requests left.
+ * @param totalRequests The total number of requests allowed in the cycle.
  * @param spendCents The amount spent in cents (optional).
  * @param hardLimitDollars The hard limit in dollars (optional).
+ * @param resetInfo Information about when the usage resets (optional).
  */
 export function updateStatusBar(
   remainingRequests: number,
+  totalRequests: number,
   spendCents?: number,
-  hardLimitDollars?: number
+  hardLimitDollars?: number,
+  resetInfo?: ResetInfo
 ) {
   if (!statusBarItem) {
     return;
   }
 
-  const warningThreshold = TOTAL_REQUESTS * 0.1; // 10%
+  const warningThreshold = totalRequests * 0.1; // 10%
   let icon = "$(zap)";
 
   // Reset background color before setting it.
@@ -79,7 +91,7 @@ export function updateStatusBar(
   // Build status text - primary display is remaining requests
   // Only show spending when there are 0 requests left
   let statusText: string;
-  
+
   if (remainingRequests > 0) {
     // Show remaining requests
     statusText = `${icon} ${remainingRequests}`;
@@ -98,41 +110,101 @@ export function updateStatusBar(
   statusBarItem.text = statusText;
 
   // Update tooltip with detailed information
-  updateTooltip(remainingRequests, spendCents, hardLimitDollars);
+  updateTooltip(
+    remainingRequests,
+    totalRequests,
+    spendCents,
+    hardLimitDollars,
+    resetInfo
+  );
 }
 
 /**
- * Updates the tooltip with comprehensive usage and spending information.
+ * Updates the tooltip with comprehensive usage, spending, and reset information.
  * @param remainingRequests The number of requests left.
+ * @param totalRequests The total number of requests allowed in the cycle.
  * @param spendCents The amount spent in cents (optional).
  * @param hardLimitDollars The hard limit in dollars (optional).
+ * @param resetInfo Information about when the usage resets (optional).
  */
 function updateTooltip(
   remainingRequests: number,
+  totalRequests: number,
   spendCents?: number,
-  hardLimitDollars?: number
+  hardLimitDollars?: number,
+  resetInfo?: ResetInfo
 ) {
   if (!statusBarItem) {
     return;
   }
 
-  const usedRequests = TOTAL_REQUESTS - remainingRequests;
-  const requestPercentage = ((usedRequests / TOTAL_REQUESTS) * 100).toFixed(1);
+  const usedRequests = totalRequests - remainingRequests;
+  const requestPercentage = ((usedRequests / totalRequests) * 100).toFixed(1);
 
-  let tooltip = `Fast Premium Requests: ${remainingRequests}/${TOTAL_REQUESTS} remaining (${requestPercentage}% used)`;
+  // Calculate cycle information once if resetInfo is available
+  let daysElapsed = 0;
+  let dailyUsageRate = 0;
+  if (resetInfo && resetInfo.daysRemaining > 0) {
+    const startOfCycle = new Date(resetInfo.resetDate);
+    startOfCycle.setMonth(startOfCycle.getMonth() - 1); // Go back one month to get start
+
+    const totalCycleDays = Math.ceil(
+      (resetInfo.resetDate.getTime() - startOfCycle.getTime()) /
+        (1000 * 3600 * 24)
+    );
+    daysElapsed = totalCycleDays - resetInfo.daysRemaining;
+
+    if (daysElapsed > 0) {
+      dailyUsageRate = parseFloat((usedRequests / daysElapsed).toFixed(1));
+    }
+  }
+
+  let tooltip = "";
+
+  // Add reset information at the top if available
+  if (resetInfo) {
+    let resetText =
+      resetInfo.daysRemaining === 1
+        ? `Resets tomorrow (${resetInfo.resetDateStr})`
+        : resetInfo.daysRemaining === 0
+          ? `Resets today (${resetInfo.resetDateStr})`
+          : `Resets in ${resetInfo.daysRemaining} days (${resetInfo.resetDateStr})`;
+
+    // Add daily usage rate to the reset line if available
+    if (dailyUsageRate > 0) {
+      resetText += ` · ${dailyUsageRate} requests/day avg`;
+    }
+
+    tooltip = `${resetText}\n`;
+
+    // Add warning about quota exhaustion if needed
+    if (remainingRequests > 0 && dailyUsageRate > 0) {
+      const estimatedDaysLeft = Math.ceil(remainingRequests / dailyUsageRate);
+      if (estimatedDaysLeft < resetInfo.daysRemaining) {
+        tooltip += `⚠️ At current rate, quota exhausted in ~${estimatedDaysLeft} days\n`;
+      }
+    }
+
+    tooltip += "\n";
+  }
+
+  // Add main request stats
+  tooltip += `Fast Premium Requests: ${remainingRequests}/${totalRequests} remaining (${requestPercentage}% used)`;
 
   if (spendCents !== undefined && hardLimitDollars !== undefined) {
     const spendDollars = spendCents / 100;
-    const spendPercentage = ((spendDollars / hardLimitDollars) * 100).toFixed(1);
+    const spendPercentage = ((spendDollars / hardLimitDollars) * 100).toFixed(
+      1
+    );
     const remainingDollars = (hardLimitDollars - spendDollars).toFixed(2);
-    
+
     tooltip += `\nSpending: $${spendDollars.toFixed(2)} of $${hardLimitDollars.toFixed(2)} limit (${spendPercentage}% used)`;
     tooltip += `\nRemaining budget: $${remainingDollars}`;
 
     // Add relevant warnings based on current state
     if (remainingRequests > 0) {
       // When showing requests, warn about low requests
-      if (remainingRequests <= TOTAL_REQUESTS * 0.1) {
+      if (remainingRequests <= totalRequests * 0.1) {
         tooltip += `\n⚠️ Low on requests`;
       }
     } else {
@@ -147,7 +219,7 @@ function updateTooltip(
     // No spending data available
     if (remainingRequests <= 0) {
       tooltip += `\n⚠️ No requests remaining`;
-    } else if (remainingRequests <= TOTAL_REQUESTS * 0.1) {
+    } else if (remainingRequests <= totalRequests * 0.1) {
       tooltip += `\n⚠️ Low on requests`;
     }
   }

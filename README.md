@@ -1,22 +1,24 @@
 # Cursor Usage
 
-> Track your remaining Cursor fast-premium requests and usage-based spending directly in your Cursor's status bar.
+> Track your remaining Cursor fast-premium requests and usage-based spending directly in your Cursor's status bar with intelligent reset tracking and usage analytics.
 
 ## What It Gives You
 
-This extension displays your remaining Cursor fast-premium requests count in Cursor's status bar, with usage-based spending information shown when you've exhausted your included requests. It updates automatically so you never get caught off-guard when you're about to hit your limits. Think of it as your personal AI usage speedometer with financial tracking.
+This extension displays your remaining Cursor fast-premium requests count in Cursor's status bar, with usage-based spending information shown when you've exhausted your included requests. It now includes intelligent reset date tracking and daily usage analytics to help you better manage your AI usage. Think of it as your personal AI usage speedometer with financial tracking and predictive insights.
 
 - **Real-time tracking**: See your remaining requests at a glance (e.g., `⚡ 247`)
+- **Smart reset tracking**: Know exactly when your quota resets and how many days remain
+- **Usage analytics**: Daily usage rate tracking and quota exhaustion predictions
 - **Smart transitions**: When requests are exhausted, seamlessly shows spending vs limit (e.g., `$1.52/$150.00`)
 - **Smart color coding**: Visual warnings when you're running low on requests or approaching spend limits
-- **Comprehensive tooltips**: Detailed breakdown of usage and spending with percentages and warnings
+- **Enhanced tooltips**: Comprehensive breakdown with reset dates, usage patterns, and predictive warnings
 - **Click to refresh**: Quick manual refresh by clicking the status bar
 - **Automatic updates**: Configurable polling to keep data fresh
 - **Command Palette Access**: All key actions are available via commands.
 
 ## How It Works
 
-The extension authenticates with Cursor's Dashboard API using your browser session cookie, fetches your team's usage data, and displays your remaining fast-premium requests. When you've used all your included requests, it switches to showing your current spending against your hard limit. It's essentially doing what you'd do manually by checking the Cursor dashboard, but automatically and without leaving your editor.
+The extension authenticates with Cursor's API using your browser session cookie, fetches both your individual user data and team usage data, then intelligently combines them to provide comprehensive usage insights. It gets reset dates and request limits from your individual user API, while using team data for actual usage counts. When you've used all your included requests, it switches to showing your current spending against your hard limit.
 
 **Visual Status Indicators:**
 
@@ -90,33 +92,49 @@ Hover over the status bar item to see comprehensive information:
 **When you have requests remaining:**
 
 ```
-Cursor Usage:
-• Fast Premium Requests: 247/500 remaining (50.6% used)
-• Click to refresh usage data
+Resets in 23 days (2024-02-15) · 8.7 requests/day avg
 
-Usage-Based Spending:
-• Current spend: $1.52 of $150.00 limit (1.0% used)
-• Remaining budget: $148.48
+Fast Premium Requests: 247/500 remaining (50.6% used)
+Spending: $1.52 of $150.00 limit (1.0% used)
+Remaining budget: $148.48
 ```
 
 **When requests are exhausted:**
 
 ```
-Cursor Usage:
-• Fast Premium Requests: 0/500 remaining (100% used)
-• Click to refresh usage data
+Resets in 23 days (2024-02-15) · 21.7 requests/day avg
 
-Usage-Based Spending:
-• Current spend: $1.52 of $150.00 limit (1.0% used)
-• Remaining budget: $148.48
+Fast Premium Requests: 0/500 remaining (100% used)
+Spending: $1.52 of $150.00 limit (1.0% used)
+Remaining budget: $148.48
+⚠️ No requests remaining
 ```
 
-Additional warnings appear when limits are approached:
+**With predictive warnings:**
 
-- `⚠️ Low on fast premium requests` (≤10% remaining)
+```
+Resets in 23 days (2024-02-15) · 25.0 requests/day avg
+⚠️ At current rate, quota exhausted in ~10 days
+
+Fast Premium Requests: 250/500 remaining (50.0% used)
+Spending: $0.00 of $150.00 limit (0.0% used)
+Remaining budget: $150.00
+```
+
+**Key tooltip features:**
+
+- **Reset countdown**: Shows exact reset date and days remaining
+- **Usage analytics**: Daily average request consumption
+- **Predictive warnings**: Alerts if you're likely to exhaust quota before reset
+- **Dynamic limits**: Displays your actual plan limits (not hardcoded values)
+
+Additional contextual warnings:
+
+- `⚠️ Low on requests` (≤10% remaining)
 - `⚠️ Approaching spend limit` (≥80% of budget used)
-- `⚠️ No fast premium requests remaining`
+- `⚠️ No requests remaining`
 - `⚠️ Spend limit reached!`
+- `⚠️ At current rate, quota exhausted in ~X days`
 
 ## Security & Privacy
 
@@ -140,7 +158,7 @@ Don't just take our word for it, though. This extension is fully open-source. Fe
 ### Data Usage
 
 - **We don't store anything**: Your cookie and usage data never reach us
-- **Direct communication**: Extension talks directly to `cursor.com/api/dashboard`
+- **Direct communication**: Extension talks directly to `cursor.com/api`
 - **Minimal data**: Only fetches essential usage information
 - **No tracking**: Zero analytics, telemetry, or data collection
 
@@ -148,9 +166,11 @@ Don't just take our word for it, though. This extension is fully open-source. Fe
 
 The extension only makes authenticated requests to these Cursor endpoints:
 
+- `/api/auth/me` - to get your user information
+- `/api/usage?user=USER_ID` - to get your individual usage data and reset dates
 - `/api/dashboard/teams` - to get your team list
-- `/api/dashboard/team` - to get your user ID
-- `/api/dashboard/get-team-spend` - to get usage data
+- `/api/dashboard/team` - to get your user ID within teams
+- `/api/dashboard/get-team-spend` - to get team usage data
 
 That's it. No third parties, no external services, no funny business.
 

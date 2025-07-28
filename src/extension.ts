@@ -6,6 +6,33 @@ import * as config from "./configuration";
 let refreshTimer: NodeJS.Timeout | undefined;
 
 /**
+ * Calculates the next reset date based on the start of month date.
+ * @param startOfMonth ISO date string representing when the current cycle started
+ * @returns Object containing reset date and days remaining
+ */
+function calculateResetInfo(startOfMonth: string): {
+  resetDate: Date;
+  daysRemaining: number;
+  resetDateStr: string;
+} {
+  const startDate = new Date(startOfMonth);
+
+  // Calculate next reset date by adding 1 month
+  const resetDate = new Date(startDate);
+  resetDate.setMonth(resetDate.getMonth() + 1);
+
+  // Calculate days remaining
+  const now = new Date();
+  const timeDiff = resetDate.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+  // Format reset date as YYYY-MM-DD
+  const resetDateStr = resetDate.toISOString().split("T")[0];
+
+  return { resetDate, daysRemaining, resetDateStr };
+}
+
+/**
  * This is the main activation function for the extension.
  * It's called by VS Code when the extension is activated.
  */
@@ -131,7 +158,7 @@ function openSettings(): void {
 }
 
 /**
- * The core logic for fetching usage data and updating the UI.
+ * The core logic for fetching usage data and updating the UI using individual user endpoints.
  */
 async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
   console.log("[Cursor Usage] Attempting to refresh usage...");
@@ -147,6 +174,15 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
       return;
     }
 
+    // Get user information for reset date
+    const userMe = await api.fetchUserMe(cookie);
+    console.log(`[Cursor Usage] Fetched user info for: ${userMe.email}`);
+
+    // Get user usage data for reset date information
+    const userUsage = await api.fetchUserUsage(userMe.sub, cookie);
+    console.log(`[Cursor Usage] Fetched usage data for user: ${userMe.sub}`);
+
+    // Get team-based usage data for request counts
     const teamId = await getTeamId(context, cookie);
     if (!teamId) {
       statusBar.setStatusBarError("Team ID?");
@@ -171,17 +207,28 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
       return;
     }
 
-    const totalRequests = 500;
+    // Extract max requests from GPT-4 attribute at individual API but use team API for actual usage
+    const maxRequests = userUsage["gpt-4"].maxRequestUsage || 500; // Default to 500 if not specified (I'm not sure how the new pricing response works)
     const usedRequests = mySpend.fastPremiumRequests;
-    const remainingRequests = totalRequests - usedRequests;
+    const remainingRequests = maxRequests - usedRequests;
 
     // Extract spending information if available
     const spendCents = mySpend.spendCents;
     const hardLimitDollars = mySpend.hardLimitOverrideDollars;
 
-    statusBar.updateStatusBar(remainingRequests, spendCents, hardLimitDollars);
+    // Calculate reset information
+    const resetInfo = calculateResetInfo(userUsage.startOfMonth);
 
-    let logMessage = `[Cursor Usage] Successfully updated status bar. Remaining requests: ${remainingRequests}`;
+    // Update status bar with reset information
+    statusBar.updateStatusBar(
+      remainingRequests,
+      maxRequests,
+      spendCents,
+      hardLimitDollars,
+      resetInfo
+    );
+
+    let logMessage = `[Cursor Usage] Successfully updated status bar. Remaining requests: ${remainingRequests}/${maxRequests}, Resets in ${resetInfo.daysRemaining} days (${resetInfo.resetDateStr})`;
     if (spendCents !== undefined && hardLimitDollars !== undefined) {
       const spendDollars = (spendCents / 100).toFixed(2);
       logMessage += `, Current spend: $${spendDollars}/$${hardLimitDollars.toFixed(2)}`;
