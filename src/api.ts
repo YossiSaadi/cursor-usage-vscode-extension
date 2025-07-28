@@ -41,7 +41,7 @@ async function post<T>(
 
     command = `curl -s -L '${url}' \
       -H 'Content-Type: application/json' \
-      -b 'WorkosCursorSessionToken=${escapedCookie}' \
+      -b 'WorkosCursorSessionToken='${escapedCookie}'' \
       --data-raw '${escapedBody}'`;
   }
 
