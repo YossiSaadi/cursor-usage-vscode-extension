@@ -21,24 +21,40 @@ async function post<T>(
   const url = `${BASE_URL}/${endpoint}`;
   console.log(`[Cursor Usage] Fetching data from ${endpoint} using curl`);
 
-  const escapedBody = JSON.stringify(body).replace(/'/g, "'\\''");
-  const escapedCookie = userCookie.replace(/'/g, "'\\''");
-
-  const command = `curl -s -L '${url}' \
-      -H 'Content-Type: application/json' \
-      -b 'WorkosCursorSessionToken=${escapedCookie}' \
-      --data-raw '${escapedBody}'`;
+  // Detect platform for proper shell escaping
+  const isWindows = process.platform === 'win32';
+  
+  let command: string;
+  if (isWindows) {
+    // Windows PowerShell escaping
+    const jsonBody = JSON.stringify(body).replace(/"/g, '""');
+    const escapedCookie = userCookie.replace(/"/g, '""');
+    
+    command = `curl -s -L "${url}" -H "Content-Type: application/json" -b "WorkosCursorSessionToken=${escapedCookie}" --data-raw "${jsonBody}"`;
+  } else {
+    // Unix/Linux shell escaping
+    const escapedBody = JSON.stringify(body).replace(/'/g, "'\\''");
+    const escapedCookie = userCookie.replace(/'/g, "'\\''");
+    
+    command = `curl -s -L '${url}' -H 'Content-Type: application/json' -b 'WorkosCursorSessionToken=${escapedCookie}' --data-raw '${escapedBody}'`;
+  }
 
   try {
     const { stdout } = await execAsync(command);
     if (!stdout) {
       throw new Error("curl command returned empty stdout");
     }
-    return JSON.parse(stdout) as T;
+    
+    // Enhanced error handling for better debugging
+    try {
+      return JSON.parse(stdout) as T;
+    } catch (parseError: any) {
+      console.error(`[Cursor Usage] Failed to parse JSON response from ${endpoint}:`, stdout);
+      throw new Error(`Invalid JSON response from ${endpoint}: ${parseError.message}`);
+    }
   } catch (error: any) {
-    console.error(
-      `[Cursor Usage] curl command failed for ${endpoint}: ${error.message}`
-    );
+    console.error(`[Cursor Usage] curl command failed for ${endpoint}: ${error.message}`);
+    console.error(`[Cursor Usage] Command executed: ${command}`);
     // Re-throw the error to be handled by the calling function
     throw error;
   }
