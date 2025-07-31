@@ -1,12 +1,10 @@
-import { exec } from "child_process";
-import { promisify } from "util";
+import * as https from "https";
 import { TeamsResponse, TeamDetails, SpendData, UserMeResponse, UserUsageResponse } from "./models";
 
-const execAsync = promisify(exec);
 const BASE_URL = "https://cursor.com/api";
 
 /**
- * A generic and secure wrapper for making requests to the Cursor API using curl.
+ * A generic and secure wrapper for making requests to the Cursor API using Node.js https module.
  * @param method The HTTP method (GET or POST).
  * @param endpoint The API endpoint (relative to BASE_URL).
  * @param userCookie The user's authentication cookie.
@@ -20,32 +18,62 @@ async function makeRequest<T>(
   body?: object
 ): Promise<T> {
   const url = `${BASE_URL}/${endpoint}`;
-  console.log(`[Cursor Usage] Making ${method} request to ${endpoint} using curl`);
+  console.log(`[Cursor Usage] Making ${method} request to ${url}`);
 
-  const escapedCookie = userCookie.replace(/'/g, "'\\''");
-  
-  let command = `curl -s -L '${url}' \
-      -H 'Content-Type: application/json' \
-      -b 'WorkosCursorSessionToken=${escapedCookie}'`;
-
-  if (method === "POST" && body) {
-    const escapedBody = JSON.stringify(body).replace(/'/g, "'\\''");
-    command += ` --data-raw '${escapedBody}'`;
-  }
-
-  try {
-    const { stdout } = await execAsync(command);
-    if (!stdout) {
-      throw new Error(`${method} request returned empty stdout`);
+  const options: https.RequestOptions = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "Cookie": `WorkosCursorSessionToken=${userCookie}`,
+      "Origin": "https://cursor.com",
+      "Referer": "https://cursor.com/"
     }
-    return JSON.parse(stdout) as T;
-  } catch (error: any) {
-    console.error(
-      `[Cursor Usage] ${method} request failed for ${endpoint}: ${error.message}`
-    );
-    // Re-throw the error to be handled by the calling function
-    throw error;
-  }
+  };
+
+  return new Promise<T>((resolve, reject) => {
+    const req = https.request(url, options, (res) => {
+      let data = "";
+
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        try {
+          console.log(`[Cursor Usage] Response status: ${res.statusCode} for ${url}`);
+          console.log(`[Cursor Usage] Response headers: ${JSON.stringify(res.headers)}`);
+          
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            const parsedData = JSON.parse(data);
+            console.log(`[Cursor Usage] Successfully parsed response for ${url}`);
+            resolve(parsedData as T);
+          } else {
+            console.error(`[Cursor Usage] HTTP error ${res.statusCode} for ${url}: ${data}`);
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          }
+        } catch (error) {
+          console.error(`[Cursor Usage] Failed to parse response for ${url}: ${error}`);
+          console.error(`[Cursor Usage] Raw response data: ${data}`);
+          reject(new Error(`Failed to parse response: ${error}`));
+        }
+      });
+    });
+
+    req.on("error", (error) => {
+      console.error(
+        `[Cursor Usage] ${method} request failed for ${url}: ${error.message}`
+      );
+      reject(error);
+    });
+
+    if (method === "POST" && body) {
+      const requestBody = JSON.stringify(body);
+      console.log(`[Cursor Usage] Sending request body: ${requestBody}`);
+      req.write(requestBody);
+    }
+
+    req.end();
+  });
 }
 
 /**

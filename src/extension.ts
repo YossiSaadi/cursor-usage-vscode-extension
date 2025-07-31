@@ -184,31 +184,59 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
 
     // Get team-based usage data for request counts
     const teamId = await getTeamId(context, cookie);
-    if (!teamId) {
-      statusBar.setStatusBarError("Team ID?");
-      vscode.window.showErrorMessage(
-        "Could not determine your Cursor Team ID. Please set it in the extension settings."
-      );
-      return;
+    
+    // Try to get team data if teamId is available
+    let mySpend: api.TeamMemberSpend | undefined;
+    let maxRequests = userUsage["gpt-4"].maxRequestUsage || 500; // Default to 500 if not specified
+    
+    if (teamId) {
+      try {
+        const userDetails = await api.fetchTeamDetails(teamId, cookie);
+        const spendData = await api.fetchTeamSpend(teamId, cookie);
+
+        mySpend = spendData.teamMemberSpend.find(
+          (member) => member.userId === userDetails.userId
+        );
+      } catch (teamError: any) {
+        console.warn(`[Cursor Usage] Failed to fetch team data: ${teamError.message}`);
+        // Continue without team data
+      }
+    } else {
+      console.log("[Cursor Usage] No team ID available, continuing with individual user data only");
     }
 
-    const userDetails = await api.fetchTeamDetails(teamId, cookie);
-    const spendData = await api.fetchTeamSpend(teamId, cookie);
-
-    const mySpend = spendData.teamMemberSpend.find(
-      (member) => member.userId === userDetails.userId
-    );
-
+    // If we couldn't get team spend data, we'll show a simplified view with just the individual user data
     if (!mySpend || typeof mySpend.fastPremiumRequests !== "number") {
-      statusBar.setStatusBarWarning("No Data");
-      console.warn(
-        `[Cursor Usage] Could not find spend data for User ID: ${userDetails.userId}`
+      // Use individual user API data as fallback
+      console.log("[Cursor Usage] Using individual user data as fallback");
+      
+      // For individual users, we'll show the GPT-4 usage data
+      const gpt4Usage = userUsage["gpt-4"];
+      const usedRequests = gpt4Usage.numRequests;
+      const remainingRequests = Math.max(0, maxRequests - usedRequests);
+      
+      // Extract spending information if available
+      const spendCents = undefined; // Not available in individual user data
+      const hardLimitDollars = undefined; // Not available in individual user data
+
+      // Calculate reset information
+      const resetInfo = calculateResetInfo(userUsage.startOfMonth);
+
+      // Update status bar with reset information
+      statusBar.updateStatusBar(
+        remainingRequests,
+        maxRequests,
+        spendCents,
+        hardLimitDollars,
+        resetInfo
       );
+
+      let logMessage = `[Cursor Usage] Successfully updated status bar with individual data. Remaining requests: ${remainingRequests}/${maxRequests}, Resets in ${resetInfo.daysRemaining} days (${resetInfo.resetDateStr})`;
+      console.log(logMessage);
       return;
     }
 
-    // Extract max requests from GPT-4 attribute at individual API but use team API for actual usage
-    const maxRequests = userUsage["gpt-4"].maxRequestUsage || 500; // Default to 500 if not specified (I'm not sure how the new pricing response works)
+    // If we have team spend data, use it as before
     const usedRequests = mySpend.fastPremiumRequests;
     const remainingRequests = maxRequests - usedRequests;
 
@@ -231,7 +259,7 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
     let logMessage = `[Cursor Usage] Successfully updated status bar. Remaining requests: ${remainingRequests}/${maxRequests}, Resets in ${resetInfo.daysRemaining} days (${resetInfo.resetDateStr})`;
     if (spendCents !== undefined && hardLimitDollars !== undefined) {
       const spendDollars = (spendCents / 100).toFixed(2);
-      logMessage += `, Current spend: $${spendDollars}/$${hardLimitDollars.toFixed(2)}`;
+      logMessage += `, Current spend: ${spendDollars}/${hardLimitDollars.toFixed(2)}`;
     }
     console.log(logMessage);
   } catch (error: any) {
@@ -290,8 +318,9 @@ async function getTeamId(
     console.error(
       `[Cursor Usage] Failed to auto-detect Team ID: ${error.message}`
     );
-    // Re-throwing the error to be caught by refreshUsage
-    throw error;
+    // Instead of re-throwing, we return undefined to allow the extension to continue
+    // This addresses the issue where team detection fails but we still want to show usage data
+    return undefined;
   }
 }
 
