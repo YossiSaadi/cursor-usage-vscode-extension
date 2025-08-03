@@ -41,7 +41,6 @@ async function makeRequest<T>(
       res.on("end", () => {
         try {
           console.log(`[Cursor Usage] Response status: ${res.statusCode} for ${url}`);
-          console.log(`[Cursor Usage] Response headers: ${JSON.stringify(res.headers)}`);
           
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             const parsedData = JSON.parse(data);
@@ -68,7 +67,6 @@ async function makeRequest<T>(
 
     if (method === "POST" && body) {
       const requestBody = JSON.stringify(body);
-      console.log(`[Cursor Usage] Sending request body: ${requestBody}`);
       req.write(requestBody);
     }
 

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as api from "./api";
 import * as statusBar from "./statusBar";
 import * as config from "./configuration";
+import { TeamMemberSpend } from "./models";
 
 let refreshTimer: NodeJS.Timeout | undefined;
 
@@ -186,7 +187,7 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
     const teamId = await getTeamId(context, cookie);
     
     // Try to get team data if teamId is available
-    let mySpend: api.TeamMemberSpend | undefined;
+    let mySpend: TeamMemberSpend | undefined;
     let maxRequests = userUsage["gpt-4"].maxRequestUsage || 500; // Default to 500 if not specified
     
     if (teamId) {
