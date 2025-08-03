@@ -18,15 +18,14 @@ async function makeRequest<T>(
   body?: object
 ): Promise<T> {
   const url = `${BASE_URL}/${endpoint}`;
-  console.log(`[Cursor Usage] Making ${method} request to ${url}`);
+  console.log(`[Cursor Usage] Making ${method} request to ${endpoint}`);
 
   const options: https.RequestOptions = {
     method,
     headers: {
       "Content-Type": "application/json",
       "Cookie": `WorkosCursorSessionToken=${userCookie}`,
-      "Origin": "https://cursor.com",
-      "Referer": "https://cursor.com/"
+      "Origin": "https://cursor.com"
     }
   };
 
@@ -40,11 +39,8 @@ async function makeRequest<T>(
 
       res.on("end", () => {
         try {
-          console.log(`[Cursor Usage] Response status: ${res.statusCode} for ${url}`);
-          
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             const parsedData = JSON.parse(data);
-            console.log(`[Cursor Usage] Successfully parsed response for ${url}`);
             resolve(parsedData as T);
           } else {
             console.error(`[Cursor Usage] HTTP error ${res.statusCode} for ${url}: ${data}`);
@@ -52,7 +48,6 @@ async function makeRequest<T>(
           }
         } catch (error) {
           console.error(`[Cursor Usage] Failed to parse response for ${url}: ${error}`);
-          console.error(`[Cursor Usage] Raw response data: ${data}`);
           reject(new Error(`Failed to parse response: ${error}`));
         }
       });
