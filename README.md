@@ -18,7 +18,13 @@ This extension displays your remaining Cursor fast-premium requests count in Cur
 
 ## How It Works
 
-The extension authenticates with Cursor's API using your browser session cookie, fetches both your individual user data and team usage data, then intelligently combines them to provide comprehensive usage insights. It gets reset dates and request limits from your individual user API, while using team data for actual usage counts. When you've used all your included requests, it switches to showing your current spending against your hard limit.
+The extension authenticates with Cursor's API using your browser session cookie and uses a two-tier approach to provide usage insights:
+
+**For Team Users:** Fetches both individual user data (for reset dates and limits) and team usage data (for actual usage counts and spending), then combines them for comprehensive insights.
+
+**For Individual Users:** Uses your personal usage data directly from Cursor's individual user API, showing request counts and reset dates.
+
+The extension gracefully falls back to individual data if team information is unavailable, ensuring it works for all users regardless of their Cursor setup.
 
 **Visual Status Indicators:**
 
@@ -56,12 +62,14 @@ You'll need to extract your `WorkosCursorSessionToken` cookie from your browser:
 
 ### 2. Team ID (Optional)
 
-If you belong to multiple Cursor teams, you may want to specify which team to track. You can set this via the `Cursor Usage: Set Team ID` command or in your settings.
+**For Individual Users:** If you don't belong to any Cursor teams, you can skip this step entirely. The extension will automatically use your individual usage data.
+
+**For Team Users:** If you belong to multiple Cursor teams, you may want to specify which team to track. You can set this via the `Cursor Usage: Set Team ID` command or in your settings.
 
 - To auto-detect, leave the value empty or enter `auto`. The extension will use the first team it finds and cache the ID.
 - To specify a team, find its `id` in the `teams` API request in your browser's network tab and enter it.
 
-If you don't set a team ID, the extension will automatically use your first team.
+If you don't set a team ID, the extension will automatically try to use your first team, or fall back to individual data if no teams are found.
 
 ## Configuration
 
@@ -232,12 +240,6 @@ vsce package
 - Your session cookie isn't set or has expired.
 - Re-run the `Cursor Usage: Insert cookie value` command.
 
-### Status bar shows "Team ID?"
-
-- The extension can't auto-detect your team, or the cached ID is invalid.
-- Run the `Cursor Usage: Set Team ID` command to set it manually.
-- If issues persist, try running `Cursor Usage: Force Re-initialize`.
-
 ### Status bar shows "Refresh Failed"
 
 - There may be a network connectivity issue or the Cursor API is down.
@@ -246,9 +248,9 @@ vsce package
 
 ### Spending information not showing
 
-- Spending data (`spendCents` and `hardLimitOverrideDollars`) may not be available for all users or teams.
-- The extension will gracefully fall back to showing only fast-premium request counts.
-- Ensure your team has usage-based billing configured if you expect to see spending data.
+- **Individual users:** Spending data is only available for team users. Individual users will see request counts and reset dates only.
+- **Team users:** Spending data (`spendCents` and `hardLimitOverrideDollars`) may not be available for all teams. Ensure your team has usage-based billing configured.
+- The extension gracefully falls back to showing request counts when spending data is unavailable.
 
 ## License
 
