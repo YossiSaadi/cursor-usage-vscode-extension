@@ -2,9 +2,10 @@ import * as vscode from "vscode";
 import * as api from "./api";
 import * as statusBar from "./statusBar";
 import * as config from "./configuration";
-import { TeamMemberSpend } from "./models";
+import { SpendData, TeamMemberSpend } from "./models";
 
 let refreshTimer: NodeJS.Timeout | undefined;
+const CENTS_PER_DOLLAR = 100;
 
 /**
  * Calculates the next reset date based on the start of month date.
@@ -31,6 +32,63 @@ function calculateResetInfo(startOfMonth: string): {
   const resetDateStr = resetDate.toISOString().split("T")[0];
 
   return { resetDate, daysRemaining, resetDateStr };
+}
+
+function resolveHardLimitDollars(
+  spendData?: SpendData,
+  memberSpend?: TeamMemberSpend
+): number | undefined {
+  const memberCandidates = [
+    memberSpend?.hardLimitOverrideDollars,
+    memberSpend?.hardLimitDollars,
+  ];
+
+  for (const candidate of memberCandidates) {
+    if (isValidNumber(candidate)) {
+      return candidate;
+    }
+  }
+
+  if (!spendData) {
+    return undefined;
+  }
+
+  const teamDollarCandidates = [
+    spendData.teamHardLimitDollars,
+    spendData.hardLimitDollars,
+    spendData.defaultHardLimitDollars,
+  ];
+
+  for (const candidate of teamDollarCandidates) {
+    if (isValidNumber(candidate)) {
+      return candidate;
+    }
+  }
+
+  const teamCentCandidates = [
+    spendData.teamHardLimitCents,
+    spendData.hardLimitCents,
+    spendData.defaultHardLimitCents,
+  ];
+
+  for (const candidate of teamCentCandidates) {
+    if (isValidNumber(candidate)) {
+      return candidate / 100;
+    }
+  }
+
+  return undefined;
+}
+
+function isValidNumber(value?: number | null): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function dollarsToCents(amount?: number | null): number | undefined {
+  if (!isValidNumber(amount)) {
+    return undefined;
+  }
+  return Math.round(amount );
 }
 
 /**
@@ -191,12 +249,14 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
 
     // TEAM FLOW: Try to get team-based usage data if user has related team from api/sets a team ID manually
     // If we couldn't get team spend data, we'll show a simplified view with just the individual user data
-    if (teamId) {
+  let teamSpendData: SpendData | undefined;
+
+  if (teamId) {
       try {
         const userDetails = await api.fetchTeamDetails(teamId, cookie);
-        const spendData = await api.fetchTeamSpend(teamId, cookie);
+      teamSpendData = await api.fetchTeamSpend(teamId, cookie);
 
-        mySpend = spendData.teamMemberSpend.find(
+      mySpend = teamSpendData.teamMemberSpend.find(
           (member) => member.userId === userDetails.userId
         );
       } catch (teamError: any) {
@@ -221,7 +281,47 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
       // TEAM FLOW: Use team-based data when available
       usedRequests = mySpend.fastPremiumRequests;
       spendCents = mySpend.spendCents;
-      hardLimitDollars = mySpend.hardLimitOverrideDollars;
+      hardLimitDollars = resolveHardLimitDollars(teamSpendData, mySpend);
+    }
+
+    if (spendCents === undefined || hardLimitDollars === undefined) {
+      try {
+        const usageSummary = await api.fetchUsageSummary(cookie);
+        const onDemandUsage = usageSummary.individualUsage?.onDemand;
+
+        if (onDemandUsage?.enabled) {
+          if (spendCents === undefined) {
+            const usageCents = dollarsToCents(onDemandUsage.used);
+            if (usageCents !== undefined) {
+              spendCents = usageCents;
+            }
+          }
+
+          if (hardLimitDollars === undefined && isValidNumber(onDemandUsage.limit)) {
+            hardLimitDollars = dollarsToCents(onDemandUsage.limit);
+            if (hardLimitDollars !== undefined) {
+              hardLimitDollars = hardLimitDollars / 100;
+            }
+          }
+        }
+      } catch (summaryError: any) {
+        console.warn(
+          `[Cursor Usage] Failed to fetch usage summary: ${summaryError.message}`
+        );
+      }
+    }
+
+    if (hardLimitDollars === undefined) {
+      try {
+        const hardLimitResponse = await api.fetchHardLimit(cookie);
+        if (isValidNumber(hardLimitResponse.hardLimit)) {
+          hardLimitDollars = hardLimitResponse.hardLimit;
+        }
+      } catch (hardLimitError: any) {
+        console.warn(
+          `[Cursor Usage] Failed to fetch hard limit: ${hardLimitError.message}`
+        );
+      }
     }
 
     // Calculate final values and update status bar
@@ -231,6 +331,7 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
     statusBar.updateStatusBar(
       remainingRequests,
       maxRequests,
+      usedRequests,
       spendCents,
       hardLimitDollars,
       resetInfo

@@ -30,6 +30,7 @@ export interface TeamMemberSpend {
   userId?: number;
   spendCents?: number;
   hardLimitOverrideDollars?: number;
+  hardLimitDollars?: number;
   name?: string;
   role?: string;
 }
@@ -40,6 +41,43 @@ export interface TeamMemberSpend {
  */
 export interface SpendData {
   teamMemberSpend: TeamMemberSpend[];
+  hardLimitDollars?: number;
+  hardLimitCents?: number;
+  defaultHardLimitDollars?: number;
+  defaultHardLimitCents?: number;
+  teamHardLimitDollars?: number;
+  teamHardLimitCents?: number;
+}
+
+interface UsageSummaryBreakdown {
+  included?: number;
+  bonus?: number;
+  total?: number;
+}
+
+export interface UsageSummaryMetric {
+  enabled: boolean;
+  used: number;
+  limit: number;
+  remaining: number;
+  breakdown?: UsageSummaryBreakdown;
+}
+
+export interface UsageSummaryResponse {
+  billingCycleStart: string;
+  billingCycleEnd: string;
+  membershipType?: string;
+  limitType?: string;
+  isUnlimited?: boolean;
+  individualUsage?: {
+    plan?: UsageSummaryMetric;
+    onDemand?: UsageSummaryMetric;
+  };
+  teamUsage?: Record<string, unknown>;
+}
+
+export interface HardLimitResponse {
+  hardLimit: number;
 }
 
 /**

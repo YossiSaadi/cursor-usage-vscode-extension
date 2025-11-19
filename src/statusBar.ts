@@ -29,6 +29,7 @@ export function createStatusBarItem() {
  * Updates the status bar with the remaining requests, spending info, reset info, and appropriate color/icon.
  * @param remainingRequests The number of requests left.
  * @param totalRequests The total number of requests allowed in the cycle.
+ * @param usedRequests The number of requests already used in the cycle.
  * @param spendCents The amount spent in cents (optional).
  * @param hardLimitDollars The hard limit in dollars (optional).
  * @param resetInfo Information about when the usage resets (optional).
@@ -36,6 +37,7 @@ export function createStatusBarItem() {
 export function updateStatusBar(
   remainingRequests: number,
   totalRequests: number,
+  usedRequests: number,
   spendCents?: number,
   hardLimitDollars?: number,
   resetInfo?: ResetInfo
@@ -92,15 +94,22 @@ export function updateStatusBar(
   // Only show spending when there are 0 requests left
   let statusText: string;
 
+  const normalizedUsedRequests = Math.max(0, usedRequests);
+  const usageSummary = `${normalizedUsedRequests}/${totalRequests}`;
+  const spendSummary =
+    spendCents !== undefined && hardLimitDollars !== undefined
+      ? `$${(spendCents / 100).toFixed(2)}/$${hardLimitDollars.toFixed(2)}`
+      : undefined;
+
   if (remainingRequests > 0) {
     // Show remaining requests
-    statusText = `${icon} ${remainingRequests}`;
+    statusText = spendSummary
+      ? `${icon} ${remainingRequests} · ${spendSummary}`
+      : `${icon} ${remainingRequests} · ${usageSummary}`;
   } else {
     // No requests left - show spending instead (if available)
-    if (spendCents !== undefined && hardLimitDollars !== undefined) {
-      const spendDollars = (spendCents / 100).toFixed(2);
-      const limitDollars = hardLimitDollars.toFixed(2);
-      statusText = `${icon} $${spendDollars}/$${limitDollars}`;
+    if (spendSummary) {
+      statusText = `${icon} ${spendSummary}`;
     } else {
       // No spending data available, just show 0
       statusText = `${icon} 0`;
@@ -112,6 +121,7 @@ export function updateStatusBar(
   // Update tooltip with detailed information
   updateTooltip(
     remainingRequests,
+    normalizedUsedRequests,
     totalRequests,
     spendCents,
     hardLimitDollars,
@@ -122,6 +132,7 @@ export function updateStatusBar(
 /**
  * Updates the tooltip with comprehensive usage, spending, and reset information.
  * @param remainingRequests The number of requests left.
+ * @param usedRequests The number of requests already used in the cycle.
  * @param totalRequests The total number of requests allowed in the cycle.
  * @param spendCents The amount spent in cents (optional).
  * @param hardLimitDollars The hard limit in dollars (optional).
@@ -129,6 +140,7 @@ export function updateStatusBar(
  */
 function updateTooltip(
   remainingRequests: number,
+  usedRequests: number,
   totalRequests: number,
   spendCents?: number,
   hardLimitDollars?: number,
@@ -138,8 +150,10 @@ function updateTooltip(
     return;
   }
 
-  const usedRequests = totalRequests - remainingRequests;
-  const requestPercentage = ((usedRequests / totalRequests) * 100).toFixed(1);
+  const usageForDisplay = Math.max(0, usedRequests);
+  const requestPercentage = totalRequests
+    ? ((usageForDisplay / totalRequests) * 100).toFixed(1)
+    : "0.0";
 
   // Calculate cycle information once if resetInfo is available
   let daysElapsed = 0;
