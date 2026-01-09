@@ -1,5 +1,5 @@
 import * as https from "https";
-import { TeamsResponse, TeamDetails, SpendData, UserMeResponse, UserUsageResponse } from "./models";
+import { TeamsResponse, TeamDetails, SpendData, UserMeResponse, UserUsageResponse, UsageSummaryResponse } from "./models";
 
 const BASE_URL = "https://cursor.com/api";
 
@@ -119,4 +119,9 @@ export async function fetchUserMe(cookie: string): Promise<UserMeResponse> {
 /** Fetches the current user's usage data from /api/usage?user=USER_ID. */
 export async function fetchUserUsage(userId: string, cookie: string): Promise<UserUsageResponse> {
   return get<UserUsageResponse>(`usage?user=${userId}`, cookie);
+}
+
+/** Fetches the current user's usage summary from /api/usage-summary. */
+export async function fetchUsageSummary(cookie: string): Promise<UsageSummaryResponse> {
+  return get<UsageSummaryResponse>("usage-summary", cookie);
 }

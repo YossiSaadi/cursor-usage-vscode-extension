@@ -60,19 +60,19 @@ export function updateStatusBar(
     isOverSpendLimit = spendDollars >= hardLimitDollars;
   }
 
-  // Determine warning/error states based on current display mode
+  // Determine warning/error states based on spending status
   let shouldShowError = false;
   let shouldShowWarning = false;
 
-  if (remainingRequests > 0) {
-    // When showing requests: base colors on request status
+  if (spendCents !== undefined && hardLimitDollars !== undefined) {
+    // Base colors on spending status (primary display mode)
+    shouldShowError = isOverSpendLimit;
+    shouldShowWarning = isCloseToSpendLimit && !isOverSpendLimit;
+  } else if (remainingRequests > 0) {
+    // Fallback to request-based warnings if dollar data not available
     const isLowOnRequests = remainingRequests <= warningThreshold;
     shouldShowWarning = isLowOnRequests;
     shouldShowError = false; // Never error state when requests remain
-  } else {
-    // When showing spending (0 requests): base colors on spending status
-    shouldShowError = isOverSpendLimit;
-    shouldShowWarning = isCloseToSpendLimit && !isOverSpendLimit;
   }
 
   // Set icon and background based on determined status
@@ -88,23 +88,21 @@ export function updateStatusBar(
     );
   }
 
-  // Build status text - primary display is remaining requests
-  // Only show spending when there are 0 requests left
+  // Build status text - primary display is dollar-based usage
   let statusText: string;
 
-  if (remainingRequests > 0) {
-    // Show remaining requests
+  if (spendCents !== undefined && hardLimitDollars !== undefined) {
+    // Show dollar-based usage: Remaining $X.XX ($Y.YY / $Z.ZZ)
+    const remainingDollars = ((hardLimitDollars * 100 - spendCents) / 100).toFixed(2);
+    const spendDollars = (spendCents / 100).toFixed(2);
+    const limitDollars = hardLimitDollars.toFixed(2);
+    statusText = `${icon} Remaining $${remainingDollars} ($${spendDollars} / $${limitDollars})`;
+  } else if (remainingRequests > 0) {
+    // Fallback to requests if dollar data not available
     statusText = `${icon} ${remainingRequests}`;
   } else {
-    // No requests left - show spending instead (if available)
-    if (spendCents !== undefined && hardLimitDollars !== undefined) {
-      const spendDollars = (spendCents / 100).toFixed(2);
-      const limitDollars = hardLimitDollars.toFixed(2);
-      statusText = `${icon} $${spendDollars}/$${limitDollars}`;
-    } else {
-      // No spending data available, just show 0
-      statusText = `${icon} 0`;
-    }
+    // No data available
+    statusText = `${icon} 0`;
   }
 
   statusBarItem.text = statusText;
@@ -138,8 +136,12 @@ function updateTooltip(
     return;
   }
 
-  const usedRequests = totalRequests - remainingRequests;
-  const requestPercentage = ((usedRequests / totalRequests) * 100).toFixed(1);
+  // Calculate request percentage only if we have valid request data
+  let requestPercentage = "0.0";
+  if (totalRequests > 0) {
+    const usedRequests = totalRequests - remainingRequests;
+    requestPercentage = ((usedRequests / totalRequests) * 100).toFixed(1);
+  }
 
   // Calculate cycle information once if resetInfo is available
   let daysElapsed = 0;
@@ -188,9 +190,7 @@ function updateTooltip(
     tooltip += "\n";
   }
 
-  // Add main request stats
-  tooltip += `Fast Premium Requests: ${remainingRequests}/${totalRequests} remaining (${requestPercentage}% used)`;
-
+  // Add main usage stats - prioritize dollar-based display
   if (spendCents !== undefined && hardLimitDollars !== undefined) {
     const spendDollars = spendCents / 100;
     const spendPercentage = ((spendDollars / hardLimitDollars) * 100).toFixed(
@@ -198,25 +198,23 @@ function updateTooltip(
     );
     const remainingDollars = (hardLimitDollars - spendDollars).toFixed(2);
 
-    tooltip += `\nSpending: $${spendDollars.toFixed(2)} of $${hardLimitDollars.toFixed(2)} limit (${spendPercentage}% used)`;
+    tooltip += `Usage: $${spendDollars.toFixed(2)} of $${hardLimitDollars.toFixed(2)} limit (${spendPercentage}% used)`;
     tooltip += `\nRemaining budget: $${remainingDollars}`;
 
-    // Add relevant warnings based on current state
-    if (remainingRequests > 0) {
-      // When showing requests, warn about low requests
-      if (remainingRequests <= totalRequests * 0.1) {
-        tooltip += `\n⚠️ Low on requests`;
-      }
-    } else {
-      // When showing spending, warn about spending status
-      if (spendDollars >= hardLimitDollars) {
-        tooltip += `\n⚠️ Spend limit reached`;
-      } else if (spendDollars / hardLimitDollars >= 0.8) {
-        tooltip += `\n⚠️ Approaching spend limit`;
-      }
+    // Add warnings based on spending status
+    if (spendDollars >= hardLimitDollars) {
+      tooltip += `\n⚠️ Spend limit reached`;
+    } else if (spendDollars / hardLimitDollars >= 0.8) {
+      tooltip += `\n⚠️ Approaching spend limit`;
+    }
+
+    // Add request stats if available (for reference)
+    if (remainingRequests > 0 && totalRequests > 0) {
+      tooltip += `\n\nFast Premium Requests: ${remainingRequests}/${totalRequests} remaining (${requestPercentage}% used)`;
     }
   } else {
-    // No spending data available
+    // Fallback to request-based display if dollar data not available
+    tooltip += `Fast Premium Requests: ${remainingRequests}/${totalRequests} remaining (${requestPercentage}% used)`;
     if (remainingRequests <= 0) {
       tooltip += `\n⚠️ No requests remaining`;
     } else if (remainingRequests <= totalRequests * 0.1) {

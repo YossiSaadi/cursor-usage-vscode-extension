@@ -175,72 +175,42 @@ async function refreshUsage(context: vscode.ExtensionContext): Promise<void> {
       return;
     }
 
-    // Get user information for reset date
-    const userMe = await api.fetchUserMe(cookie);
-    console.log(`[Cursor Usage] Fetched user info for: ${userMe.email}`);
+    // Fetch usage summary from the new API endpoint
+    const usageSummary = await api.fetchUsageSummary(cookie);
+    console.log(`[Cursor Usage] Fetched usage summary`);
 
-    // Get user usage data for reset date information
-    const userUsage = await api.fetchUserUsage(userMe.sub, cookie);
-    console.log(`[Cursor Usage] Fetched usage data for user: ${userMe.sub}`);
+    // Extract usage data from the new API response
+    const { individualUsage } = usageSummary;
+    const { used, limit, remaining } = individualUsage.plan;
 
-    // Two-tier approach: try team data first, fallback to individual data
-    // This supports both team users and individual users without teams
-    const teamId = await getTeamId(context, cookie);
-    let mySpend: TeamMemberSpend | undefined;
-    let maxRequests = userUsage["gpt-4"].maxRequestUsage || 500;
+    // Convert cents to dollars for display
+    const usedDollars = used / 100;
+    const limitDollars = limit / 100;
+    const remainingDollars = remaining / 100;
 
-    // TEAM FLOW: Try to get team-based usage data if user has related team from api/sets a team ID manually
-    // If we couldn't get team spend data, we'll show a simplified view with just the individual user data
-    if (teamId) {
-      try {
-        const userDetails = await api.fetchTeamDetails(teamId, cookie);
-        const spendData = await api.fetchTeamSpend(teamId, cookie);
+    // Calculate reset info from billing cycle end date
+    const billingCycleEnd = new Date(usageSummary.billingCycleEnd);
+    const now = new Date();
+    const timeDiff = billingCycleEnd.getTime() - now.getTime();
+    const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    const resetDateStr = billingCycleEnd.toISOString().split("T")[0];
 
-        mySpend = spendData.teamMemberSpend.find(
-          (member) => member.userId === userDetails.userId
-        );
-      } catch (teamError: any) {
-        console.warn(
-          `[Cursor Usage] Failed to fetch team data: ${teamError.message}`
-        );
-      }
-    }
+    const resetInfo = {
+      resetDate: billingCycleEnd,
+      daysRemaining: Math.max(0, daysRemaining),
+      resetDateStr,
+    };
 
-    // Determine usage data source and calculate values
-    let usedRequests: number;
-    let spendCents: number | undefined;
-    let hardLimitDollars: number | undefined;
-
-    if (!mySpend || typeof mySpend.fastPremiumRequests !== "number") {
-      // INDIVIDUAL FLOW: Use individual user API data - works for solo users or when team API fails
-      const gpt4Usage = userUsage["gpt-4"];
-      usedRequests = gpt4Usage.numRequests;
-      spendCents = undefined; // Individual users don't have spending data in team API
-      hardLimitDollars = undefined;
-    } else {
-      // TEAM FLOW: Use team-based data when available
-      usedRequests = mySpend.fastPremiumRequests;
-      spendCents = mySpend.spendCents;
-      hardLimitDollars = mySpend.hardLimitOverrideDollars;
-    }
-
-    // Calculate final values and update status bar
-    const remainingRequests = Math.max(0, maxRequests - usedRequests);
-    const resetInfo = calculateResetInfo(userUsage.startOfMonth);
-
+    // Update status bar with dollar-based usage
     statusBar.updateStatusBar(
-      remainingRequests,
-      maxRequests,
-      spendCents,
-      hardLimitDollars,
+      0, // remainingRequests - no longer used, we show dollars instead
+      0, // totalRequests - no longer used
+      used, // spendCents
+      limitDollars, // hardLimitDollars
       resetInfo
     );
 
-    let logMessage = `[Cursor Usage] Successfully updated status bar. Remaining requests: ${remainingRequests}/${maxRequests}, Resets in ${resetInfo.daysRemaining} days`;
-    if (spendCents !== undefined && hardLimitDollars !== undefined) {
-      const spendDollars = (spendCents / 100).toFixed(2);
-      logMessage += `, spend: $${spendDollars}/$${hardLimitDollars.toFixed(2)}`;
-    }
+    const logMessage = `[Cursor Usage] Successfully updated status bar. Remaining: $${remainingDollars.toFixed(2)} ($${usedDollars.toFixed(2)} / $${limitDollars.toFixed(2)}), Resets in ${resetInfo.daysRemaining} days`;
     console.log(logMessage);
   } catch (error: any) {
     statusBar.setStatusBarError("Refresh Failed");
