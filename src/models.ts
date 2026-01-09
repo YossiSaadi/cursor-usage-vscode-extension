@@ -74,3 +74,27 @@ export interface UserUsageResponse {
   "gpt-4-32k": ModelUsage;
   startOfMonth: string; // ISO date string
 }
+
+/**
+ * Represents the plan usage information from the usage-summary endpoint.
+ */
+export interface PlanUsage {
+  used: number;      // Amount used in cents
+  limit: number;     // Limit in cents
+  remaining: number; // Remaining in cents
+}
+
+/**
+ * Represents the individual usage information from the usage-summary endpoint.
+ */
+export interface IndividualUsage {
+  plan: PlanUsage;
+}
+
+/**
+ * Represents the response from /api/usage-summary endpoint.
+ */
+export interface UsageSummaryResponse {
+  individualUsage: IndividualUsage;
+  billingCycleEnd: string; // ISO date string
+}
